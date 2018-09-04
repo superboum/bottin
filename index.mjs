@@ -1,11 +1,16 @@
 import ldap from 'ldapjs'
 import consul from 'consul'
+import ssha from 'openldap_ssha' 
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
 
 const server = ldap.createServer()
 const svc_mesh = consul()
+const suffix = 'dc=deuxfleurs,dc=fr'
 
+/*
+ * Data Transform
+ */
 const dn_to_consul = dn => {
   return dn.rdns.map(rdn => rdn.toString()).reverse().join('/')
 }
@@ -38,12 +43,37 @@ const parse_consul_res = keys => {
            .map(k => ({dn: k, attributes: aggregator[k]}))
 }
 
-server.search('dc=deuxfleurs,dc=fr', (req, res, next) => {
+/*
+ * Handlers
+ */
+server.bind(suffix, (req, res, next) => {
+  const user_dn = req.dn.toString()
+  svc_mesh.kv.get(user_dn+"/attribute=userPassword", (err, data) => {
+    if (err) {
+      return next(new ldap.OperationsError(err))
+    }
+    if (data === undefined || data === null) {
+      return next(new ldap.NoSuchObjectError(user_dn))
+    }
+    const hash = data.Value
+    const password = req.credentials 
+    ssha.checkssha(req.credentials, hash, err => {
+      
+    }
+    console.log(err, data) 
+    res.end()
+    return next()
+  })
+})
+
+/*
+ * Routes
+ */
+server.search(suffix, (req, res, next) => {
   const prefix = dn_to_consul(req.dn)
-  console.log(prefix)
   svc_mesh.kv.get({key: prefix+"/", recurse: true }, (err, data) => {
     if (err) {
-      return next(ldap.OperationsError(err))
+      return next(new ldap.OperationsError(err))
     }
 
     parse_consul_res(data)
