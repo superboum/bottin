@@ -47,7 +47,7 @@ server.search('dc=deuxfleurs,dc=fr', (req, res, next) => {
     }
 
     parse_consul_res(data)
-      //.filter(o => req.filter.matches(o))
+      .filter(o => req.filter.matches(o.attributes))
       .forEach(o => res.send(o))
   
     res.end();
