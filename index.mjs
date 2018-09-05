@@ -1,12 +1,54 @@
 import ldap from 'ldapjs'
 import consul from 'consul'
-import ssha from 'openldap_ssha' 
+import crypto from 'crypto'
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
 
 const server = ldap.createServer()
 const svc_mesh = consul()
 const suffix = 'dc=deuxfleurs,dc=fr'
+
+/*
+ * Security
+ */
+
+const  ssha_pass = (passwd, salt, next) => {
+    const _ssha = (passwd, salt, next ) => {
+        const ctx = crypto.createHash('sha1');
+        ctx.update(passwd, 'utf-8');
+        ctx.update(salt, 'binary');
+        const digest = ctx.digest('binary');
+        const ssha = '{ssha}' + new Buffer(digest+salt,'binary').toString('base64');
+        return next(null, ssha);
+    }
+    if(next === undefined) {
+            next = salt;
+            salt = null;
+    }
+    if(salt === null ){
+        crypto.randomBytes(32, function(ex, buf) {
+            if (ex) return next(ex);
+            _ssha(passwd,buf.toString('base64') ,next);
+            return null;
+        });
+    }else{
+        _ssha(passwd,salt,next);
+    }
+    return null;
+}
+
+const checkssha = (passwd, hash, next) => {
+    if (hash.substring(0,6).toLowerCase() != '{ssha}') {
+        return next(new Error('not {ssha}'),false);
+    }
+    const bhash = new Buffer(hash.substr(6),'base64');
+    const salt = bhash.toString('binary',20); // sha1 digests are 20 bytes long
+    ssha_pass(passwd,salt,function(err,newssha){
+        if(err) return next(err)
+        return next(null,hash.substring(6) === newssha.substring(6))
+    });
+    return null;
+}
 
 /*
  * Data Transform
@@ -46,8 +88,17 @@ const parse_consul_res = keys => {
 /*
  * Handlers
  */
+const authorize = (req, res, next) => {
+  if (req.connection.ldap.bindDN.equals(''))
+    return next(new ldap.InsufficientAccessRightsError())
+  return next()
+}
+
+/*
+ * Routes
+ */
 server.bind(suffix, (req, res, next) => {
-  const user_dn = req.dn.toString()
+  const user_dn = dn_to_consul(req.dn)
   svc_mesh.kv.get(user_dn+"/attribute=userPassword", (err, data) => {
     if (err) {
       return next(new ldap.OperationsError(err))
@@ -55,21 +106,19 @@ server.bind(suffix, (req, res, next) => {
     if (data === undefined || data === null) {
       return next(new ldap.NoSuchObjectError(user_dn))
     }
-    const hash = data.Value
-    const password = req.credentials 
-    ssha.checkssha(req.credentials, hash, err => {
-      
-    }
-    console.log(err, data) 
-    res.end()
-    return next()
+    const hash = JSON.parse(data.Value)
+    const password = req.credentials
+    checkssha(req.credentials, hash, (err, v) => {
+      if (err) return next(new ldap.OperationsError(err.toString()))
+      if (!v) return next(new ldap.InvalidCredentialsError())
+    
+      res.end()
+      return next()
+    })
   })
 })
 
-/*
- * Routes
- */
-server.search(suffix, (req, res, next) => {
+server.search(suffix, authorize, (req, res, next) => {
   const prefix = dn_to_consul(req.dn)
   svc_mesh.kv.get({key: prefix+"/", recurse: true }, (err, data) => {
     if (err) {
@@ -84,4 +133,7 @@ server.search(suffix, (req, res, next) => {
   })
 })
 
+/*
+ * Main
+ */
 server.listen(1389, () => console.log('LDAP server listening at %s', server.url))

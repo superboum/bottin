@@ -10,7 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "consul": "^0.34.0",
-    "ldapjs": "^1.0.2",
-    "openldap_ssha": "0.0.11"
+    "ldapjs": "^1.0.2"
   }
 }
