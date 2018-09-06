@@ -4,10 +4,12 @@ import crypto from 'crypto'
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
 // @FIXME: Rewrite with Promises + async 
-// @FIXME: Used crypto functions are deprecated
+// @FIXME: Warning crypto functions are deprecated
 // @FIXME: Error are probably too verbose
 // @FIXME: Add an initial prefix to the consul key value
 // @FIXME: Check that a user can't read more than it should -> check requests for wrong inclusion and use the consul ACL system
+// @FIXME: Handle multi suffix
+// @FIXME: Implement base, one, sub
 
 const server = ldap.createServer()
 const svc_mesh = consul()
@@ -17,7 +19,7 @@ const suffix = 'dc=deuxfleurs,dc=fr'
  * Security
  */
 
-const  ssha_pass = (passwd, salt, next) => {
+const ssha_pass = (passwd, salt, next) => {
     const _ssha = (passwd, salt, next ) => {
         const ctx = crypto.createHash('sha1');
         ctx.update(passwd, 'utf-8');
@@ -137,6 +139,7 @@ const decorate_with_memberof = (obj, member_data) => {
 const authorize = (req, res, next) => {
   if (req.connection.ldap.bindDN.equals(''))
     return next(new ldap.InsufficientAccessRightsError())
+
   return next()
 }
 
@@ -167,9 +170,7 @@ server.bind(suffix, (req, res, next) => {
 server.search(suffix, authorize, (req, res, next) => {
   const prefix = dn_to_consul(req.dn)
   svc_mesh.kv.get({key: prefix+"/", recurse: true }, (err, data) => {
-    if (err) {
-      return next(new ldap.OperationsError(err))
-    }
+    if (err) return next(new ldap.OperationsError(err.toString()))
 
     fetch_membership(extract_memberof_from_filter(req.filter), (err, membership) => {
       if (err) 
@@ -181,6 +182,20 @@ server.search(suffix, authorize, (req, res, next) => {
   
       res.end();
     })
+  })
+})
+
+server.add(suffix, authorize, (req, res, next) => {
+  const consul_dn = dn_to_consul(req.dn)
+  svc_mesh.kv.get({key: consul_dn, recurse: true}, (err, data) => {
+    if (err) return next(new ldap.OperationsError(err.toString()))
+    if (data.length > 0) return next(new ldap.EntryAlreadyExistsError(dn.toString()))
+
+    Object.keys(req.)
+    svc_mesh.kv.set(
+
+    res.end()
+    return next() 
   })
 })
 
