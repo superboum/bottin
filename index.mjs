@@ -3,6 +3,11 @@ import consul from 'consul'
 import crypto from 'crypto'
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
+// @FIXME: Rewrite with Promises + async 
+// @FIXME: Used crypto functions are deprecated
+// @FIXME: Error are probably too verbose
+// @FIXME: Add an initial prefix to the consul key value
+// @FIXME: Check that a user can't read more than it should -> check requests for wrong inclusion and use the consul ACL system
 
 const server = ldap.createServer()
 const svc_mesh = consul()
@@ -85,6 +90,47 @@ const parse_consul_res = keys => {
            .map(k => ({dn: k, attributes: aggregator[k]}))
 }
 
+const extract_memberof_from_filter = filter => {
+  let res = []
+  if (filter.attribute && filter.attribute == "memberof")
+    res.push(filter.value)
+  
+  if (filter.filters)
+    res = res.concat(filter.filters.reduce((acc, cur) => acc.concat(extract_memberof_from_filter(cur)), []))
+
+  return res
+}
+
+const fetch_membership = (memberof_to_load, cb) => {
+  let remaining_requests = memberof_to_load.length
+  const error_list = []
+  const membership = {}
+
+  memberof_to_load.forEach(m => {
+    svc_mesh.kv.get(dn_to_consul(ldap.parseDN(m)) + "/attribute=member", (err, data) => {
+      if (err) error_list.push(err)
+      else if (!data || !data.Value) error_list.push(m + " not found")
+      else if (data.Value) JSON.parse(data.Value).forEach(user => {
+        if (!(user in membership)) membership[user] = []
+        membership[user].push(m)
+      })
+
+      remaining_requests--
+      if (remaining_requests === 0) cb(error_list.length === 0 ? null : error_list, membership)
+    })           
+  })
+  if (memberof_to_load.length === 0)
+    cb(null, [])
+}
+
+const decorate_with_memberof = (obj, member_data) => {
+  if (obj.dn in member_data) {
+    obj.attributes.memberof = member_data[obj.dn]
+  }
+
+  return obj
+}
+
 /*
  * Handlers
  */
@@ -125,11 +171,16 @@ server.search(suffix, authorize, (req, res, next) => {
       return next(new ldap.OperationsError(err))
     }
 
-    parse_consul_res(data)
-      .filter(o => req.filter.matches(o.attributes))
-      .forEach(o => res.send(o))
+    fetch_membership(extract_memberof_from_filter(req.filter), (err, membership) => {
+      if (err) 
+        return next(new ldap.OperationsError(err.toString()))
+
+      parse_consul_res(data)
+        .filter(o => req.filter.matches(decorate_with_memberof(o, membership).attributes))
+        .forEach(o => res.send(o))
   
-    res.end();
+      res.end();
+    })
   })
 })
 
