@@ -9,7 +9,10 @@ import crypto from 'crypto'
 // @FIXME: Add an initial prefix to the consul key value
 // @FIXME: Check that a user can't read more than it should -> check requests for wrong inclusion and use the consul ACL system
 // @FIXME: Handle multi suffix
-// @FIXME: Implement base, one, sub
+// @FIXME: Implement base, one, sub in search
+// @FIXME: Implement modify, delete, compare
+// @FIXME: Implement a basic permission system
+// @FIXME: Implement a REAL permission system
 
 const server = ldap.createServer()
 const svc_mesh = consul()
