@@ -200,7 +200,6 @@ server.add(suffix, authorize, (req, res, next) => {
             .map(k => new Promise((resolve, reject) => {
               svc_mesh.kv.set(consul_dn + "/attribute=" + k, JSON.stringify(attributes_to_add[k]), (err, setres) => err ? reject(err) : resolve(setres))
     }))).then(setres => {
-      console.log(setres)
       res.end()
       return next() 
     }).catch(seterr => {
