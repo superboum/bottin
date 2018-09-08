@@ -1,6 +1,7 @@
 import ldap from 'ldapjs'
 import consul from 'consul'
 import crypto from 'crypto'
+import config from './config.json'
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
 // @FIXME: Rewrite with Promises + async 
@@ -16,7 +17,7 @@ import crypto from 'crypto'
 
 const server = ldap.createServer()
 const svc_mesh = consul()
-const suffix = 'dc=deuxfleurs,dc=fr'
+const suffix = config.suffix
 
 /*
  * Security
@@ -230,4 +231,4 @@ server.add(suffix, authorize, (req, res, next) => {
 /*
  * Main
  */
-server.listen(1389, () => console.log('LDAP server listening at %s', server.url))
+server.listen(config.port, () => console.log('LDAP server listening at %s', server.url))
