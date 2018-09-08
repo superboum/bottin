@@ -143,7 +143,26 @@ const authorize = (req, res, next) => {
   if (req.connection.ldap.bindDN.equals(''))
     return next(new ldap.InsufficientAccessRightsError())
 
-  return next()
+  const query = new Promise((resolve, reject) =>
+    svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/internal=permission", (err, getres) => err ? reject(err) : resolve(getres)))
+
+  query.then(key => {
+    if (!key || !key.Value)
+      return next(new ldap.InsufficientAccessRightsError())
+
+    const user_perm = JSON.parse(key.Value)
+    const is_search = (req instanceof ldap.SearchRequest)
+    
+    if (is_search && user_perm.includes("read"))
+      return next()
+
+    if (!is_search && user_perm.includes("write"))
+      return next()
+    
+    return next(new ldap.InsufficientAccessRightsError())
+  }).catch(err => {
+    return next(new ldap.OperationsError(err.toString()))
+  })
 }
 
 /*
