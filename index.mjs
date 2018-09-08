@@ -192,13 +192,20 @@ server.add(suffix, authorize, (req, res, next) => {
   const consul_dn = dn_to_consul(req.dn)
   svc_mesh.kv.get({key: consul_dn, recurse: true}, (err, data) => {
     if (err) return next(new ldap.OperationsError(err.toString()))
-    if (data.length > 0) return next(new ldap.EntryAlreadyExistsError(dn.toString()))
+    if (data) return next(new ldap.EntryAlreadyExistsError(req.dn.toString()))
 
-    Object.keys(req.)
-    svc_mesh.kv.set(
-
-    res.end()
-    return next() 
+    const attributes_to_add = req.toObject().attributes
+    Promise.all(
+      Object.keys(attributes_to_add)
+            .map(k => new Promise((resolve, reject) => {
+              svc_mesh.kv.set(consul_dn + "/attribute=" + k, JSON.stringify(attributes_to_add[k]), (err, setres) => err ? reject(err) : resolve(setres))
+    }))).then(setres => {
+      console.log(setres)
+      res.end()
+      return next() 
+    }).catch(seterr => {
+      return next(new ldap.OperationsError(seterr.toString()))
+    })
   })
 })
 
