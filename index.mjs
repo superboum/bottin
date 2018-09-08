@@ -12,7 +12,6 @@ import config from './config.json'
 // @FIXME: Handle multi suffix
 // @FIXME: Implement base, one, sub in search
 // @FIXME: Implement modify, delete, compare
-// @FIXME: Implement a basic permission system
 // @FIXME: Implement a REAL permission system
 
 const server = ldap.createServer()
