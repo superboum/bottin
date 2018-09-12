@@ -14,8 +14,12 @@ import config from './config.json'
 // @FIXME: Implement modify, delete, compare
 // @FIXME: Implement a REAL permission system
 
+config.suffix = process.env.BOTTIN_SUFFIX ? process.env.BOTTIN_SUFFIX : config.suffix
+config.port = process.env.BOTTIN_PORT ? process.env.BOTTIN_PORT : config.port
+config.consul = process.env.BOTTIN_CONSUL ? process.env.BOTTIN_CONSUL : config.consul
+
 const server = ldap.createServer()
-const svc_mesh = consul()
+const svc_mesh = consul({host: config.consul})
 const suffix = config.suffix
 
 /*
@@ -230,4 +234,4 @@ server.add(suffix, authorize, (req, res, next) => {
 /*
  * Main
  */
-server.listen(config.port, () => console.log('LDAP server listening at %s', server.url))
+server.listen(config.port, () => console.log('LDAP server listening at %s on suffix %s and linked to consul server %s', server.url, config.suffix, config.consul))

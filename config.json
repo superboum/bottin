@@ -1,4 +1,5 @@
 {
   "suffix": "dc=deuxfleurs,dc=fr",
-  "port": 1389
+  "port": 1389,
+  "consul": "consul.service.1.cluster.deuxfleurs.fr"
 }
