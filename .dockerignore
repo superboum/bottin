@@ -1,0 +1,5 @@
+*.ldiff
+*.txt
+node_modules/
+.gitignore
+.git/
