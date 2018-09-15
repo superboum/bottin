@@ -189,7 +189,7 @@ server.bind(suffix, (req, res, next) => {
       console.error("Failed bind for " + req.dn.toString(), "No entry in consul")
       return next(new ldap.NoSuchObjectError(user_dn))
     }
-    const hash = JSON.parse(data.Value)
+    const hash = JSON.parse(data.Value).toString()
     const password = req.credentials
     checkssha(req.credentials, hash, (err, v) => {
       if (err) return next(new ldap.OperationsError(err.toString()))
