@@ -176,9 +176,11 @@ server.bind(suffix, (req, res, next) => {
   const user_dn = dn_to_consul(req.dn)
   svc_mesh.kv.get(user_dn+"/attribute=userPassword", (err, data) => {
     if (err) {
-      return next(new ldap.OperationsError(err))
+      console.error("Failed bind for " + req.dn, err)
+      return next(new ldap.OperationsError(err.toString()))
     }
     if (data === undefined || data === null) {
+      console.error("Failed bind for " + req.dn, "No entry in consul")
       return next(new ldap.NoSuchObjectError(user_dn))
     }
     const hash = JSON.parse(data.Value)
@@ -188,6 +190,7 @@ server.bind(suffix, (req, res, next) => {
       if (!v) return next(new ldap.InvalidCredentialsError())
     
       res.end()
+      console.log("Successful bind for "+req.dn)
       return next()
     })
   })
