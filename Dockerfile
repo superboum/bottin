@@ -1,9 +1,10 @@
-FROM fedora:28
+FROM arm32v7/debian:stretch
 
-RUN dnf upgrade -y && \
-    dnf install -y curl && \
-    curl -sL https://rpm.nodesource.com/setup_10.x | bash - && \
-    dnf install -y nodejs gcc-c++ make && \
+RUN apt-get update && \
+    apt-get -qq -y full-upgrade && \
+    apt-get install -y curl gnupg2 && \
+    curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
+    apt-get install -y nodejs build-essential && \
     mkdir -p /srv/bottin
 
 COPY . /srv/bottin

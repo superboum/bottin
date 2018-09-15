@@ -144,15 +144,19 @@ const decorate_with_memberof = (obj, member_data) => {
  * Handlers
  */
 const authorize = (req, res, next) => {
-  if (req.connection.ldap.bindDN.equals(''))
+  if (req.connection.ldap.bindDN.equals('')) {
+    console.error("Anonymous bind are not authorized")
     return next(new ldap.InsufficientAccessRightsError())
+  }
 
   const query = new Promise((resolve, reject) =>
     svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/internal=permission", (err, getres) => err ? reject(err) : resolve(getres)))
 
   query.then(key => {
-    if (!key || !key.Value)
+    if (!key || !key.Value) {
+      console.error("There is no internal=permission key for "+req.dn.toString())
       return next(new ldap.InsufficientAccessRightsError())
+    }
 
     const user_perm = JSON.parse(key.Value)
     const is_search = (req instanceof ldap.SearchRequest)
@@ -163,8 +167,10 @@ const authorize = (req, res, next) => {
     if (!is_search && user_perm.includes("write"))
       return next()
     
+    console.error(req.dn.toString() + "doesn't have the correct write access")
     return next(new ldap.InsufficientAccessRightsError())
   }).catch(err => {
+    console.error("The Consul database query failed when we tried to fetch " + req.dn.toString() + "'s permissions")
     return next(new ldap.OperationsError(err.toString()))
   })
 }
@@ -176,11 +182,11 @@ server.bind(suffix, (req, res, next) => {
   const user_dn = dn_to_consul(req.dn)
   svc_mesh.kv.get(user_dn+"/attribute=userPassword", (err, data) => {
     if (err) {
-      console.error("Failed bind for " + req.dn, err)
+      console.error("Failed bind for " + req.dn.toString(), err)
       return next(new ldap.OperationsError(err.toString()))
     }
     if (data === undefined || data === null) {
-      console.error("Failed bind for " + req.dn, "No entry in consul")
+      console.error("Failed bind for " + req.dn.toString(), "No entry in consul")
       return next(new ldap.NoSuchObjectError(user_dn))
     }
     const hash = JSON.parse(data.Value)
@@ -190,7 +196,7 @@ server.bind(suffix, (req, res, next) => {
       if (!v) return next(new ldap.InvalidCredentialsError())
     
       res.end()
-      console.log("Successful bind for "+req.dn)
+      console.log("Successful bind for "+req.dn.toString())
       return next()
     })
   })
@@ -199,16 +205,22 @@ server.bind(suffix, (req, res, next) => {
 server.search(suffix, authorize, (req, res, next) => {
   const prefix = dn_to_consul(req.dn)
   svc_mesh.kv.get({key: prefix+"/", recurse: true }, (err, data) => {
-    if (err) return next(new ldap.OperationsError(err.toString()))
+    if (err) {
+      console.error("Failed to search in "+req.dn.toString(), err)
+      return next(new ldap.OperationsError(err.toString()))
+    }
 
     fetch_membership(extract_memberof_from_filter(req.filter), (err, membership) => {
-      if (err) 
+      if (err) {
+	console.error("Failed to fetch memberof in "+req.dn.toString() + " for " + req.filter.toString(), err)
         return next(new ldap.OperationsError(err.toString()))
+      }
 
       parse_consul_res(data)
         .filter(o => req.filter.matches(decorate_with_memberof(o, membership).attributes))
         .forEach(o => res.send(o))
   
+      console.log("search - dn=%s - filter=%s - bind=%s", req.dn, req.filter, req.connection.ldap.bindDN)
       res.end();
     })
   })
@@ -227,6 +239,7 @@ server.add(suffix, authorize, (req, res, next) => {
               svc_mesh.kv.set(consul_dn + "/attribute=" + k, JSON.stringify(attributes_to_add[k]), (err, setres) => err ? reject(err) : resolve(setres))
     }))).then(setres => {
       res.end()
+      console.log("add - dn=%s - bind=%s", req.dn, req.connection.ldap.bindDN)
       return next() 
     }).catch(seterr => {
       return next(new ldap.OperationsError(seterr.toString()))
