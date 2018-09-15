@@ -180,7 +180,7 @@ const authorize = (req, res, next) => {
  */
 server.bind(suffix, (req, res, next) => {
   const user_dn = dn_to_consul(req.dn)
-  svc_mesh.kv.get(user_dn+"/attribute=userPassword", (err, data) => {
+  svc_mesh.kv.get(user_dn+"/attribute=userpassword", (err, data) => {
     if (err) {
       console.error("Failed bind for " + req.dn.toString(), err)
       return next(new ldap.OperationsError(err.toString()))

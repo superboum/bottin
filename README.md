@@ -35,4 +35,5 @@ Build:
 
 ```
 docker build -t superboum/bottin .
+docker build -t superboum/arm32v7_bottin .
 ```
