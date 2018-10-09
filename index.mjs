@@ -1,3 +1,4 @@
+"use strict"
 import ldap from 'ldapjs'
 import consul from 'consul'
 import crypto from 'crypto'
@@ -67,9 +68,9 @@ const checkssha = (passwd, hash, next) => {
 /*
  * Data Transform
  */
-const dn_to_consul = dn => {
-  return dn.rdns.map(rdn => rdn.toString()).reverse().join('/')
-}
+
+const explode_dn = dn => dn.rdns.map(rdn => rdn.toString())
+const dn_to_consul = dn => explode_dn(dn).reverse().join('/')
 
 const consul_to_dn = entry => {
   const exploded_key = entry.Key.split("/").filter(e => e !== null && e !== undefined && e !== "")
@@ -141,6 +142,16 @@ const decorate_with_memberof = (obj, member_data) => {
 }
 
 /*
+ * Object abstraction
+ */
+
+const add_elements = (dn, attributes_to_add, internal_type="attribute") => Promise.all(
+    Object.keys(attributes_to_add)
+          .map(k =>
+            new Promise((resolve, reject) =>
+              svc_mesh.kv.set(dn + "/" + internal_type + "=" + k, JSON.stringify(attributes_to_add[k]), (err, setres) => err ? reject(err) : resolve(setres)))))
+
+/*
  * Handlers
  */
 const authorize = (req, res, next) => {
@@ -150,11 +161,11 @@ const authorize = (req, res, next) => {
   }
 
   const query = new Promise((resolve, reject) =>
-    svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/internal=permission", (err, getres) => err ? reject(err) : resolve(getres)))
+    svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/attribute=permission", (err, getres) => err ? reject(err) : resolve(getres)))
 
   query.then(key => {
     if (!key || !key.Value) {
-      console.error("There is no internal=permission key for "+req.dn.toString())
+      console.error("There is no attribute=permission key for "+req.dn.toString())
       return next(new ldap.InsufficientAccessRightsError())
     }
 
@@ -233,11 +244,7 @@ server.add(suffix, authorize, (req, res, next) => {
     if (data) return next(new ldap.EntryAlreadyExistsError(req.dn.toString()))
 
     const attributes_to_add = req.toObject().attributes
-    Promise.all(
-      Object.keys(attributes_to_add)
-            .map(k => new Promise((resolve, reject) => {
-              svc_mesh.kv.set(consul_dn + "/attribute=" + k, JSON.stringify(attributes_to_add[k]), (err, setres) => err ? reject(err) : resolve(setres))
-    }))).then(setres => {
+    add_elements(consul_dn, attributes_to_add).then(setres => {
       res.end()
       console.log("add - dn=%s - bind=%s", req.dn, req.connection.ldap.bindDN)
       return next() 
@@ -250,4 +257,71 @@ server.add(suffix, authorize, (req, res, next) => {
 /*
  * Main
  */
-server.listen(config.port, () => console.log('LDAP server listening at %s on suffix %s and linked to consul server %s', server.url, config.suffix, config.consul))
+
+const init = () => new Promise((resolve, reject) => {
+  svc_mesh.kv.get(dn_to_consul(ldap.parseDN(config.suffix)), (err, data) => {
+    if (err) {
+      reject(err);
+      return;
+    }
+
+    if (data) {
+      resolve();
+      return;
+    }
+
+    const base_attributes = {
+      objectClass: ['top', 'dcObject', 'organization'],
+      structuralObjectClass: 'organization'
+    }
+
+    const suffix_dn = ldap.parseDN(config.suffix)
+    const exploded_suffix = explode_dn(suffix_dn)
+    const exploded_last_entry = exploded_suffix[exploded_suffix.length - 1].split('=', 1)
+    if (exploded_last_entry.length != 2) reject(config.suffix + " is incorrect");
+    const type = exploded_last_entry[0]
+    const value = exploded_last_entry[1] 
+    base_attributes[type] = value
+
+    add_elements(suffix_dn, [base_attributes]).then(() => {
+      const username = Math.random().toString(36).slice(2)
+      const password = Math.random().toString(36).slice(2)
+      const admin_dn = ldap.parseDN(config.suffix + ",dc="+username)
+
+      ssha_pass(password, (err, hashedPass) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const admin_attributes = {
+          objectClass: ['simpleSecurityObject', 'organizationalRole'],
+          description: 'LDAP administrator',
+          cn: username,
+          userpassword: hashedPass,
+          structuralObjectClass: 'organizationalRole',
+          permissions: ['read', 'write']
+        }
+
+        add_elements(admin_dn, [admin_attributes]).then(() => {
+          console.log(
+            "It seems to be a new installation, we created a default user for you: %s with password %s\nWe didn't use true random, you should replace it as soon as possible.",
+            admin_dn.toString(),
+            password
+          )
+          resolve();
+        }).catch(err => reject(err))
+      })
+    }).catch(err => reject(err))
+  })
+})
+
+init().then(() => {
+  server.listen(
+    config.port,
+    () => console.log(
+      'LDAP server listening at %s on suffix %s and linked to consul server %s',
+      server.url,
+      config.suffix,
+      config.consul))
+}).catch(err => console.error(err))

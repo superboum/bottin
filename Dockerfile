@@ -1,4 +1,4 @@
-FROM arm32v7/debian:stretch
+FROM amd64/debian:stretch
 
 RUN apt-get update && \
     apt-get -qq -y full-upgrade && \
