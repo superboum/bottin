@@ -1,7 +1,7 @@
 "use strict"
 import ldap from 'ldapjs'
 import consul from 'consul'
-import crypto from 'crypto'
+import ssha from './ssha.mjs'
 import config from './config.json'
 
 // @FIXME: Need to check if a DN can contains a /. If yes, we are in trouble with consul.
@@ -22,48 +22,6 @@ config.consul = process.env.BOTTIN_CONSUL ? process.env.BOTTIN_CONSUL : config.c
 const server = ldap.createServer()
 const svc_mesh = consul({host: config.consul})
 const suffix = config.suffix
-
-/*
- * Security
- */
-
-const ssha_pass = (passwd, salt, next) => {
-    const _ssha = (passwd, salt, next ) => {
-        const ctx = crypto.createHash('sha1');
-        ctx.update(passwd, 'utf-8');
-        ctx.update(salt, 'binary');
-        const digest = ctx.digest('binary');
-        const ssha = '{ssha}' + new Buffer(digest+salt,'binary').toString('base64');
-        return next(null, ssha);
-    }
-    if(next === undefined) {
-            next = salt;
-            salt = null;
-    }
-    if(salt === null ){
-        crypto.randomBytes(32, function(ex, buf) {
-            if (ex) return next(ex);
-            _ssha(passwd,buf.toString('base64') ,next);
-            return null;
-        });
-    }else{
-        _ssha(passwd,salt,next);
-    }
-    return null;
-}
-
-const checkssha = (passwd, hash, next) => {
-    if (hash.substring(0,6).toLowerCase() != '{ssha}') {
-        return next(new Error('not {ssha}'),false);
-    }
-    const bhash = new Buffer(hash.substr(6),'base64');
-    const salt = bhash.toString('binary',20); // sha1 digests are 20 bytes long
-    ssha_pass(passwd,salt,function(err,newssha){
-        if(err) return next(err)
-        return next(null,hash.substring(6) === newssha.substring(6))
-    });
-    return null;
-}
 
 /*
  * Data Transform
@@ -202,7 +160,7 @@ server.bind(suffix, (req, res, next) => {
     }
     const hash = JSON.parse(data.Value).toString()
     const password = req.credentials
-    checkssha(req.credentials, hash, (err, v) => {
+    ssha.checkssha(req.credentials, hash, (err, v) => {
       if (err) return next(new ldap.OperationsError(err.toString()))
       if (!v) return next(new ldap.InvalidCredentialsError())
     
@@ -288,7 +246,7 @@ const init = () => new Promise((resolve, reject) => {
       const password = Math.random().toString(36).slice(2)
       const admin_dn = ldap.parseDN(config.suffix + ",dc="+username)
 
-      ssha_pass(password, (err, hashedPass) => {
+      ssha.ssha_pass(password, (err, hashedPass) => {
         if (err) {
           reject(err);
           return;
