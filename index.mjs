@@ -79,6 +79,7 @@ const fetch_membership = (memberof_to_load, cb) => {
       if (err) error_list.push(err)
       // We might search unrelated things
       //else if (!data || !data.Value) error_list.push(m + " not found")
+      else if (!data || !data.Value) console.warn("No entry found for " + m)
       else if (data.Value) JSON.parse(data.Value).forEach(user => {
         if (!(user in membership)) membership[user] = []
         membership[user].push(m)

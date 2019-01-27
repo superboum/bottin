@@ -28,12 +28,12 @@ node --experimental-modules index.mjs
 Run:
 
 ```
-docker run superboum/amd64_bottin:v5 --env BOTTIN_PORT=389 --env BOTTIN_CONSUL=192.168.1.1 --env BOTTIN_SUFFIX="dc=example,dc=com"
+docker run superboum/amd64_bottin:v6 --env BOTTIN_PORT=389 --env BOTTIN_CONSUL=192.168.1.1 --env BOTTIN_SUFFIX="dc=example,dc=com"
 ```
 
 Build:
 
 ```
-docker build -t superboum/amd64_bottin:v5 .
+docker build -t superboum/amd64_bottin:v6 .
 docker build -t superboum/arm32v7_bottin .
 ```
