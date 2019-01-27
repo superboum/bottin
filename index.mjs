@@ -77,7 +77,8 @@ const fetch_membership = (memberof_to_load, cb) => {
   memberof_to_load.forEach(m => {
     svc_mesh.kv.get(dn_to_consul(ldap.parseDN(m)) + "/attribute=member", (err, data) => {
       if (err) error_list.push(err)
-      else if (!data || !data.Value) error_list.push(m + " not found")
+      // We might search unrelated things
+      //else if (!data || !data.Value) error_list.push(m + " not found")
       else if (data.Value) JSON.parse(data.Value).forEach(user => {
         if (!(user in membership)) membership[user] = []
         membership[user].push(m)

@@ -32,7 +32,7 @@ export default class {
     }
     const bhash = new Buffer(hash.substr(6),'base64');
     const salt = bhash.toString('binary',20); // sha1 digests are 20 bytes long
-    ssha_pass(passwd,salt,function(err,newssha){
+    this.ssha_pass(passwd,salt,function(err,newssha){
         if(err) return next(err)
         return next(null,hash.substring(6) === newssha.substring(6))
     });
