@@ -121,12 +121,11 @@ const authorize = (req, res, next) => {
 
   console.log("Check authorization for " + req.connection.ldap.bindDN)
   const query = new Promise((resolve, reject) =>
-    svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/attribute=permission", (err, getres) => err ? reject(err) : resolve(getres)))
+    svc_mesh.kv.get(dn_to_consul(req.connection.ldap.bindDN) + "/internal=permission", (err, getres) => err ? reject(err) : resolve(getres)))
 
   query.then(key => {
     if (!key || !key.Value) {
-      console.error("There is no attribute=permission key for "+req.dn.toString())
-      console.error(req)
+      console.error("There is no internal=permission key for " + req.connection.ldap.bindDN)
       return next(new ldap.InsufficientAccessRightsError())
     }
 
