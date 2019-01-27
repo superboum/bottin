@@ -235,8 +235,11 @@ const init = () => new Promise((resolve, reject) => {
 
     const suffix_dn = ldap.parseDN(config.suffix)
     const exploded_suffix = explode_dn(suffix_dn)
-    const exploded_last_entry = exploded_suffix[exploded_suffix.length - 1].split('=', 1)
-    if (exploded_last_entry.length != 2) reject(config.suffix + " is incorrect");
+    const exploded_last_entry = exploded_suffix[exploded_suffix.length - 1].split('=', 2)
+    if (exploded_last_entry.length != 2) {
+      reject(config.suffix + " is incorrect");
+      return;
+    }
     const type = exploded_last_entry[0]
     const value = exploded_last_entry[1] 
     base_attributes[type] = value
@@ -244,7 +247,7 @@ const init = () => new Promise((resolve, reject) => {
     add_elements(suffix_dn, [base_attributes]).then(() => {
       const username = Math.random().toString(36).slice(2)
       const password = Math.random().toString(36).slice(2)
-      const admin_dn = ldap.parseDN(config.suffix + ",dc="+username)
+      const admin_dn = ldap.parseDN( "dc=" + username + "," + config.suffix)
 
       ssha.ssha_pass(password, (err, hashedPass) => {
         if (err) {
