@@ -217,7 +217,7 @@ server.add(suffix, authorize, (req, res, next) => {
  */
 
 const init = () => new Promise((resolve, reject) => {
-  svc_mesh.kv.get(dn_to_consul(ldap.parseDN(config.suffix)), (err, data) => {
+  svc_mesh.kv.get(dn_to_consul(ldap.parseDN(config.suffix)) + "/attribute=dc", (err, data) => {
     if (err) {
       reject(err);
       return;
@@ -244,7 +244,7 @@ const init = () => new Promise((resolve, reject) => {
     const value = exploded_last_entry[1] 
     base_attributes[type] = value
 
-    add_elements(suffix_dn, [base_attributes]).then(() => {
+    add_elements(dn_to_consul(suffix_dn), base_attributes).then(() => {
       const username = Math.random().toString(36).slice(2)
       const password = Math.random().toString(36).slice(2)
       const admin_dn = ldap.parseDN( "dc=" + username + "," + config.suffix)
@@ -264,7 +264,7 @@ const init = () => new Promise((resolve, reject) => {
           permissions: ['read', 'write']
         }
 
-        add_elements(admin_dn, [admin_attributes]).then(() => {
+        add_elements(dn_to_consul(admin_dn), admin_attributes).then(() => {
           console.log(
             "It seems to be a new installation, we created a default user for you: %s with password %s\nWe didn't use true random, you should replace it as soon as possible.",
             admin_dn.toString(),
