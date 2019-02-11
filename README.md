@@ -34,6 +34,6 @@ docker run superboum/amd64_bottin:v6 --env BOTTIN_PORT=389 --env BOTTIN_CONSUL=1
 Build:
 
 ```
-docker build -t superboum/amd64_bottin:v6 .
+docker build -t superboum/amd64_bottin:v8 .
 docker build -t superboum/arm32v7_bottin .
 ```

@@ -79,7 +79,7 @@ const fetch_membership = (memberof_to_load, cb) => {
     try {
         parsedM = ldap.parseDN(m)
     } catch (err) {
-        console.warning(`Unable to parse DN ${m}`);
+        console.warn(`Unable to parse DN ${m}`);
         return;
     }
     svc_mesh.kv.get(dn_to_consul(parsedM) + "/attribute=member", (err, data) => {
