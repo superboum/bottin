@@ -75,7 +75,14 @@ const fetch_membership = (memberof_to_load, cb) => {
   const membership = {}
 
   memberof_to_load.forEach(m => {
-    svc_mesh.kv.get(dn_to_consul(ldap.parseDN(m)) + "/attribute=member", (err, data) => {
+    let parsedM = ""
+    try {
+        parsedM = ldap.parseDN(m)
+    } catch (err) {
+        console.warning(`Unable to parse DN ${m}`);
+        return;
+    }
+    svc_mesh.kv.get(dn_to_consul(parsedM) + "/attribute=member", (err, data) => {
       if (err) error_list.push(err)
       // We might search unrelated things
       //else if (!data || !data.Value) error_list.push(m + " not found")
